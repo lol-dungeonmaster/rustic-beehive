@@ -1,2 +1,4 @@
 # rustic-beehive
-Agentic asset generation
+
+
+#### Agentic asset generation w/ Google Gemini
