@@ -1,1 +1,104 @@
+import cv2, inspect, logging, sys, numpy as np
+from google import genai
+from google.api_core import retry
+from google.genai.models import Models
+from google.genai import errors
+from IPython.display import HTML
+from matplotlib import pyplot as plt
+from screeninfo import get_monitors
 from . import agent
+
+log = logging.getLogger()
+logging.getLogger("google_adk.google.adk.models.google_llm").setLevel(logging.WARNING)
+logging.getLogger("google_adk.google.adk.runners").setLevel(logging.ERROR)
+logging.getLogger("google_adk.google.adk.plugins.plugin_manager").setLevel(logging.WARNING)
+
+# Tqdm and google.adk send output to stderr which doesn't mix well with logger output.
+# Define a stderr wrapper to forward output to logger.
+class StderrToLog:
+    buffer = ""
+
+    def write(self, message: str):
+        msg = message.rstrip()
+        if msg and msg is not self.buffer: # ignore empty/duplicate writes
+            self.buffer = msg
+            caller_name = inspect.stack()[1].frame.f_code.co_name
+            if caller_name in ["inner","outer"]: # tqdm internals
+                log.info(msg)
+            elif (exp_mark := "UserWarning:") in msg: # google experimental warnings
+                log.warning(msg.partition(exp_mark)[2].lstrip())
+            elif "function_call" in msg or "thought_signature" in msg: # google a2a warnings
+                log.debug("Generated a2a message but it's not included...")
+            else:
+                logging.getLogger("stderr").error(msg)
+    
+    def flush(self):
+        pass
+
+sys.stderr = StderrToLog()
+
+from .secret import UserSecretsClient
+GOOGLE_API_KEY = UserSecretsClient().get_secret("GOOGLE_API_KEY")
+client = genai.Client(api_key=GOOGLE_API_KEY)
+
+is_retriable = lambda e: (isinstance(e, errors.APIError) and e.code in {429, 503, 500})
+Models.generate_images = retry.Retry(predicate=is_retriable)(Models.generate_images)
+Models.generate_videos = retry.Retry(predicate=is_retriable)(Models.generate_videos)
+Models.generate_content = retry.Retry(predicate=is_retriable)(Models.generate_content)
+
+def side_by_side(img1, img2, width="45%", margin="2%"):
+    html = f"""
+    <div style="
+        display:flex;
+        justify-content:center;
+        align-items:center;
+        gap:{margin};
+    ">
+        <img src="{img1}" style="width:{width}; max-width:100%; height:auto;">
+        <img src="{img2}" style="width:{width}; max-width:100%; height:auto;">
+    </div>
+    """
+    return HTML(html)
+
+def depth_to_heatmap(depth_map):
+    # 1. Normalize the depth values to [0, 255]
+    depth_min = depth_map.min()
+    depth_max = depth_map.max()
+    
+    # Avoid division by zero if output is constant
+    if depth_max - depth_min > 0:
+        depth_normalized = (depth_map - depth_min) / (depth_max - depth_min)
+    else:
+        depth_normalized = np.zeros(depth_map.shape)
+
+    # 2. Scale to 0-255 and convert to uint8
+    depth_uint8 = (depth_normalized * 255).astype(np.uint8)
+
+    # 3. Apply a colormap (INFERNO is standard for depth, or use JET/VIRIDIS)
+    depth_colored = cv2.applyColorMap(depth_uint8, cv2.COLORMAP_INFERNO)
+
+    # 4. Convert from BGR (opencv) to RGB for Jupyter/Colab
+    return cv2.cvtColor(depth_colored, cv2.COLOR_BGR2RGB)
+
+def show_full_width(img):
+    # Set dpi based on screen resolution.
+    dpi = 100 if get_monitors()[0].height <= 1080 else 144
+
+    # Get image dimensions.
+    height, width = img.shape[:2]
+    
+    # Calculate figure size in inches (width / dpi, height / dpi).
+    figsize = width / float(dpi), height / float(dpi)
+    
+    # Create the figure with the exact size.
+    fig = plt.figure(figsize=figsize, dpi=dpi)
+    
+    # Add an axes that fills the whole figure (no white borders).
+    ax = fig.add_axes([0, 0, 1, 1])
+    
+    # Turn off axis labels.
+    ax.axis('off')
+    
+    # Display
+    ax.imshow(img)
+    plt.show()
