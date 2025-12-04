@@ -45,7 +45,7 @@ class Api:
     dt_rpm = 60.0
 
     @classmethod
-    def get(cls, url: str):
+    def get(cls, url: str, as_response: bool = False) -> requests.Response | str:
         # Create a header matching the OS' tcp-stack fingerprint.
         system_ua = None
         match platform.system():
@@ -59,7 +59,7 @@ class Api:
             request = requests.get(url, headers={'User-Agent': system_ua})
             if request.status_code != requests.codes.ok:
                 log.error(f"Api.get() returned status {request.status_code}")
-            return request.text
+            return request if as_response else request.text
         except Exception as e:
             raise e
 

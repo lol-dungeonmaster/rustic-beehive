@@ -1,10 +1,12 @@
-import cv2, inspect, logging, sys, numpy as np
+import cv2, logging, numpy as np, requests, time
+from enum import Enum
 from google import genai
 from google.api_core import retry
 from google.genai.models import Models
 from google.genai import errors
 from IPython.display import HTML
 from matplotlib import pyplot as plt
+from pathlib import Path
 from screeninfo import get_monitors
 from . import agent
 
@@ -78,3 +80,32 @@ def show_full_width(img):
     # Display
     ax.imshow(img)
     plt.show()
+
+class DA2Model(Enum):
+    Small = "vits"
+    Base = "vitb"
+    Large = "vitl"
+
+from .api import Api
+
+def init_model(encoder: DA2Model):
+    checkpoints = Path("external/Depth-Anything-V2/checkpoints")
+    checkpoints.mkdir(parents=True, exist_ok=True)
+    target_path = checkpoints / f"depth_anything_v2_{encoder.value}.pth"
+    file_present = target_path.is_file()
+
+    if not file_present:
+        url = f"https://huggingface.co/depth-anything/Depth-Anything-V2-{encoder.name}/resolve/main/depth_anything_v2_{encoder.value}.pth"
+        print(f"init_model: Downloading encoder {encoder.value}, do not interrupt...")
+        try:
+            data = Api.get(url, as_response=True)
+            with open(target_path, "wb") as f:
+                for chunk in data.iter_content(chunk_size=8192):
+                    if chunk:
+                        f.write(chunk)
+        except requests.exceptions.ChunkedEncodingError as e:
+            print(f"init_model: disconnected downloading {encoder.value}, retrying in 15s")
+            time.sleep(15)
+            init_model(encoder)
+        else:
+            print(f"init_model: done")
