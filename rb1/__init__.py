@@ -13,30 +13,6 @@ logging.getLogger("google_adk.google.adk.models.google_llm").setLevel(logging.WA
 logging.getLogger("google_adk.google.adk.runners").setLevel(logging.ERROR)
 logging.getLogger("google_adk.google.adk.plugins.plugin_manager").setLevel(logging.WARNING)
 
-# Tqdm and google.adk send output to stderr which doesn't mix well with logger output.
-# Define a stderr wrapper to forward output to logger.
-class StderrToLog:
-    buffer = ""
-
-    def write(self, message: str):
-        msg = message.rstrip()
-        if msg and msg is not self.buffer: # ignore empty/duplicate writes
-            self.buffer = msg
-            caller_name = inspect.stack()[1].frame.f_code.co_name
-            if caller_name in ["inner","outer"]: # tqdm internals
-                log.info(msg)
-            elif (exp_mark := "UserWarning:") in msg: # google experimental warnings
-                log.warning(msg.partition(exp_mark)[2].lstrip())
-            elif "function_call" in msg or "thought_signature" in msg: # google a2a warnings
-                log.debug("Generated a2a message but it's not included...")
-            else:
-                logging.getLogger("stderr").error(msg)
-    
-    def flush(self):
-        pass
-
-sys.stderr = StderrToLog()
-
 from .secret import UserSecretsClient
 GOOGLE_API_KEY = UserSecretsClient().get_secret("GOOGLE_API_KEY")
 client = genai.Client(api_key=GOOGLE_API_KEY)
