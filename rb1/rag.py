@@ -3,9 +3,9 @@ from google.api_core import retry
 from google.genai import types
 from typing import Optional
 from tqdm import tqdm
-from .. import is_retriable
-from ..api import Api, GeminiEmbedFunction
-from ..basemodel import ChromaDBResult
+from . import is_retriable
+from .api import Api, GeminiEmbedFunction
+from .basemodel import ChromaDBResult
 
 # Define parent class: retrieval-augmented generation.
 # - ChromaDB for storage and retrieval
