@@ -1,4 +1,5 @@
-import cv2, logging, numpy as np, requests, time
+import cv2, logging, numpy as np, requests, time, torch
+from cv2.typing import MatLike
 from enum import Enum
 from google import genai
 from google.api_core import retry
@@ -109,3 +110,23 @@ def init_model(encoder: DA2Model):
             init_model(encoder)
         else:
             print(f"init_model: done")
+
+from depth_anything_v2.dpt import DepthAnythingV2
+
+def infer_depth(image: str, encoder: DA2Model = DA2Model.Large) -> MatLike:
+    device = 'cuda' if torch.cuda.is_available() else 'mps' if torch.backends.mps.is_available() else 'cpu'
+    print(f"infer_depth: using {device} backend")
+
+    model_configs = {
+        'vits': {'encoder': 'vits', 'features': 64, 'out_channels': [48, 96, 192, 384]},
+        'vitb': {'encoder': 'vitb', 'features': 128, 'out_channels': [96, 192, 384, 768]},
+        'vitl': {'encoder': 'vitl', 'features': 256, 'out_channels': [256, 512, 1024, 1024]},
+        'vitg': {'encoder': 'vitg', 'features': 384, 'out_channels': [1536, 1536, 1536, 1536]}
+    }
+    
+    img_mat = cv2.imread(image)
+    model = DepthAnythingV2(**model_configs[encoder.value])
+    model.load_state_dict(torch.load(f'external/Depth-Anything-V2/checkpoints/depth_anything_v2_{encoder.value}.pth', map_location='cpu'))
+    model = model.to(device).eval()
+    
+    return model.infer_image(img_mat) # HxW raw depth map in numpy
