@@ -4,11 +4,16 @@ from enum import Enum
 from google import genai
 from google.api_core import retry, exceptions
 from google.genai import errors, types
+from google.genai.models import Models
 from math import inf
 from threading import Timer
 from typing import Callable, NamedTuple
-from . import is_retriable, log
 from .secret import UserSecretsClient
+
+is_retriable = lambda e: (isinstance(e, errors.APIError) and e.code in {429, 503, 500})
+Models.generate_images = retry.Retry(predicate=is_retriable)(Models.generate_images)
+Models.generate_videos = retry.Retry(predicate=is_retriable)(Models.generate_videos)
+Models.generate_content = retry.Retry(predicate=is_retriable)(Models.generate_content)
 
 class GeminiModel:
     def __init__(self, rpm: list, tpm: list, rpd: list):

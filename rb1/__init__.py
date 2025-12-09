@@ -1,29 +1,15 @@
-import cv2, logging, numpy as np, requests, time, torch
+import cv2, numpy as np, torch
 from cv2.typing import MatLike
-from enum import Enum
+from da2util import DA2Model
 from google import genai
-from google.api_core import retry
-from google.genai.models import Models
-from google.genai import errors
 from IPython.display import HTML
 from matplotlib import pyplot as plt
-from pathlib import Path
 from screeninfo import get_monitors
 from . import agent
 
-log = logging.getLogger()
-logging.getLogger("google_adk.google.adk.models.google_llm").setLevel(logging.WARNING)
-logging.getLogger("google_adk.google.adk.runners").setLevel(logging.ERROR)
-logging.getLogger("google_adk.google.adk.plugins.plugin_manager").setLevel(logging.WARNING)
-
-from .secret import UserSecretsClient
+from support.secret import UserSecretsClient
 GOOGLE_API_KEY = UserSecretsClient().get_secret("GOOGLE_API_KEY")
 client = genai.Client(api_key=GOOGLE_API_KEY)
-
-is_retriable = lambda e: (isinstance(e, errors.APIError) and e.code in {429, 503, 500})
-Models.generate_images = retry.Retry(predicate=is_retriable)(Models.generate_images)
-Models.generate_videos = retry.Retry(predicate=is_retriable)(Models.generate_videos)
-Models.generate_content = retry.Retry(predicate=is_retriable)(Models.generate_content)
 
 def side_by_side(img1, img2, width="45%", margin="2%"):
     html = f"""
@@ -82,35 +68,6 @@ def show_full_width(img):
     ax.imshow(img)
     plt.show()
 
-class DA2Model(Enum):
-    Small = "vits"
-    Base = "vitb"
-    Large = "vitl"
-
-from .api import Api
-
-def init_model(encoder: DA2Model):
-    checkpoints = Path("external/Depth-Anything-V2/checkpoints")
-    checkpoints.mkdir(parents=True, exist_ok=True)
-    target_path = checkpoints / f"depth_anything_v2_{encoder.value}.pth"
-    file_present = target_path.is_file()
-
-    if not file_present:
-        url = f"https://huggingface.co/depth-anything/Depth-Anything-V2-{encoder.name}/resolve/main/depth_anything_v2_{encoder.value}.pth"
-        print(f"init_model: Downloading encoder {encoder.value}, do not interrupt...")
-        try:
-            data = Api.get(url, as_response=True)
-            with open(target_path, "wb") as f:
-                for chunk in data.iter_content(chunk_size=8192):
-                    if chunk:
-                        f.write(chunk)
-        except requests.exceptions.ChunkedEncodingError as e:
-            print(f"init_model: disconnected downloading {encoder.value}, retrying in 15s")
-            time.sleep(15)
-            init_model(encoder)
-        else:
-            print(f"init_model: done")
-
 from depth_anything_v2.dpt import DepthAnythingV2
 
 def infer_depth(image: str, encoder: DA2Model = DA2Model.Large) -> MatLike:
@@ -129,30 +86,3 @@ def infer_depth(image: str, encoder: DA2Model = DA2Model.Large) -> MatLike:
     model.load_state_dict(torch.load(f'external/Depth-Anything-V2/checkpoints/depth_anything_v2_{encoder.value}.pth', map_location='cpu'))
     model = model.to(device).eval()
     return model.infer_image(img_mat) # HxW raw depth map in numpy
-
-import re
-import subprocess
-
-def cuda_version() -> str:
-    try:
-        result = subprocess.run(
-            ["nvcc", "--version"],
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            text=True,
-            check=False,
-        )
-        if result.returncode != 0:
-            raise RuntimeError(
-                f"nvcc failed (code {result.returncode}). "
-                f"stderr: {result.stderr.strip()}"
-            )
-    except FileNotFoundError as e:
-        print("cuda_version: nvcc command not found")
-    else:    
-        # Look for the first occurrence of ``release X.Y`` where X and Y are numbers.
-        match = re.search(r"release\s+(\d+)\.(\d+)", result.stdout, re.IGNORECASE)
-        if not match:
-            raise ValueError("Could not locate CUDA version in nvcc output.")
-        major, minor = match.groups()
-        return f"{major}{minor}"
