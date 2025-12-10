@@ -17,7 +17,6 @@ numpy
 imageio==2.37.0
 imageio-ffmpeg==0.4.7
 decord
-xformers
 einops==0.4.1
 easydict
 tqdm
