@@ -1,6 +1,6 @@
 import cv2, numpy as np, torch
 from cv2.typing import MatLike
-from da2util import DA2Model
+from da2util import DepthModel
 from google import genai
 from IPython.display import HTML
 from matplotlib import pyplot as plt
@@ -70,7 +70,7 @@ def show_full_width(img):
 
 from depth_anything_v2.dpt import DepthAnythingV2
 
-def infer_depth(image: str, encoder: DA2Model = DA2Model.Large) -> MatLike:
+def infer_depth(image: str, encoder: DepthModel = DepthModel.Large) -> MatLike:
     device = 'cuda' if torch.cuda.is_available() else 'mps' if torch.backends.mps.is_available() else 'cpu'
     print(f"infer_depth: using {device} backend")
 
