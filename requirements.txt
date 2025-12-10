@@ -1,0 +1,23 @@
+chromadb==0.6.3
+pandas
+google-api-core
+ollama
+google-adk
+google-adk[eval]
+google-genai
+pillow
+screeninfo
+# DA2 overrides
+gradio_imageslider
+gradio
+matplotlib
+opencv-contrib-python
+# VDA overrides
+numpy
+imageio==2.37.0
+imageio-ffmpeg==0.4.7
+decord
+einops==0.4.1
+easydict
+tqdm
+OpenEXR==3.3.1
