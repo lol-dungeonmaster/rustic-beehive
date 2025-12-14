@@ -7,10 +7,15 @@ class DepthModel(Enum):
     Base = "vitb"
     Large = "vitl"
 
+class VideoModel(Enum):
+    Small = "vits"
+    Base = "vitb"
+    Large = "vitl"
+
 from support.api import Api
 
-def init_model(encoder: DepthModel, video_metric_depth: bool = False):
-    if not video_metric_depth:
+def init_model(encoder: Enum):
+    if isinstance(encoder, DepthModel):
         checkpoints = Path("external/Depth-Anything-V2/checkpoints")
         target_file = f"depth_anything_v2_{encoder.value}.pth"
         url_path = f"Depth-Anything-V2-{encoder.name}"
