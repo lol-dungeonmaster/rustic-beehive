@@ -1,6 +1,6 @@
 import cv2, numpy as np, torch
 from cv2.typing import MatLike
-from da2util import DepthModel
+from da2util.model import DepthModel
 from google import genai
 from IPython.display import HTML
 from matplotlib import pyplot as plt
