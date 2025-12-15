@@ -1,4 +1,7 @@
 # rustic-beehive
 
 
-#### Agentic asset generation w/ Google Gemini
+#### Agentic game resource generation
+
+### Requirements
+- the environment variable GOOGLE_API_KEY must be set
