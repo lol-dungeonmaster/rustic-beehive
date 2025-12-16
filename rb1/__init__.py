@@ -1,4 +1,4 @@
-import cv2, json, numpy as np, open3d as o3d, os, pathlib, torch
+import cv2, Imath, json, numpy as np, open3d as o3d, OpenEXR, os, pathlib, torch
 from cv2.typing import MatLike
 from da2util.model import DepthModel, VideoModel
 from google import genai
@@ -115,6 +115,9 @@ def load_depth_png(depths_image: str) -> MatLike:
     # Recover the original depths.
     depths = scaled / 65535.0 * (max_val - min_val) + min_val
     return depths.astype(np.float32)
+
+def save_depth_lossless(depths: MatLike, src_name: str, out_path: str = 'docs/results'):
+    np.savez_compressed(os.path.join(out_path, os.path.splitext(src_name)[0]+'_depths.npz'), depths=depths)
 
 def infer_image_depth(image: str, encoder: DepthModel = DepthModel.Large) -> MatLike:
     device = 'cuda' if torch.cuda.is_available() else 'mps' if torch.backends.mps.is_available() else 'cpu'
