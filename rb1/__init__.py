@@ -82,17 +82,17 @@ model_configs = {
     'vitg': {'encoder': 'vitg', 'features': 384, 'out_channels': [1536, 1536, 1536, 1536]}
 }
 
-def scale_to_uint8(depths: MatLike) -> tuple[MatLike, float, float]:
+def scale_to_uint16(depths: MatLike) -> tuple[MatLike, float, float]:
     min_val = float(depths.min())
     max_val = float(depths.max())
     if max_val == min_val:
         raise ValueError("This depth map has zero dynamic range.")
-    scaled = ((depths - min_val) / (max_val - min_val) * 255).astype(np.uint8)
+    scaled = ((depths - min_val) / (max_val - min_val) * 65535).astype(np.uint16)
     return scaled, min_val, max_val
 
 def save_depth_png(depths: MatLike, src_name: str, out_path: str = 'docs/results'):
-    scaled, min_val, max_val = scale_to_uint8(depths)
-    png_out = Image.fromarray(scaled, mode="L") # "L" = 8‑bit grayscale
+    scaled, min_val, max_val = scale_to_uint16(depths)
+    png_out = Image.fromarray(scaled, mode="I;16") # "I;16" = 16‑bit unsigned integer grayscale
     # Store the scaling parameters in PNG metadata.
     meta = PngImagePlugin.PngInfo()
     meta.add_text(
@@ -113,7 +113,7 @@ def load_depth_png(depths_image: str) -> MatLike:
     min_val = float(params["min"])
     max_val = float(params["max"])
     # Recover the original depths.
-    depths = scaled / 255.0 * (max_val - min_val) + min_val
+    depths = scaled / 65535.0 * (max_val - min_val) + min_val
     return depths.astype(np.float32)
 
 def infer_image_depth(image: str, encoder: DepthModel = DepthModel.Large) -> MatLike:
