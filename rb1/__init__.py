@@ -1,10 +1,12 @@
 import cv2, numpy as np, torch
 from cv2.typing import MatLike
-from da2util.model import DepthModel
+from da2util.model import DepthModel, VideoModel
 from google import genai
 from IPython.display import HTML
 from matplotlib import pyplot as plt
+from numpy.typing import NDArray
 from screeninfo import get_monitors
+from typing import Any
 from . import agent
 
 from support.secret import UserSecretsClient
@@ -69,18 +71,20 @@ def show_full_width(img):
     plt.show()
 
 from depth_anything_v2.dpt import DepthAnythingV2
+from video_depth_anything.video_depth import VideoDepthAnything
+from utils.dc_utils import read_video_frames, save_video
 
-def infer_depth(image: str, encoder: DepthModel = DepthModel.Large) -> MatLike:
+model_configs = {
+    'vits': {'encoder': 'vits', 'features': 64, 'out_channels': [48, 96, 192, 384]},
+    'vitb': {'encoder': 'vitb', 'features': 128, 'out_channels': [96, 192, 384, 768]},
+    'vitl': {'encoder': 'vitl', 'features': 256, 'out_channels': [256, 512, 1024, 1024]},
+    'vitg': {'encoder': 'vitg', 'features': 384, 'out_channels': [1536, 1536, 1536, 1536]}
+}
+
+def infer_image_depth(image: str, encoder: DepthModel = DepthModel.Large) -> MatLike:
     device = 'cuda' if torch.cuda.is_available() else 'mps' if torch.backends.mps.is_available() else 'cpu'
-    print(f"infer_depth: using {device} backend")
+    print(f"image_depth: using {device} backend")
 
-    model_configs = {
-        'vits': {'encoder': 'vits', 'features': 64, 'out_channels': [48, 96, 192, 384]},
-        'vitb': {'encoder': 'vitb', 'features': 128, 'out_channels': [96, 192, 384, 768]},
-        'vitl': {'encoder': 'vitl', 'features': 256, 'out_channels': [256, 512, 1024, 1024]},
-        'vitg': {'encoder': 'vitg', 'features': 384, 'out_channels': [1536, 1536, 1536, 1536]}
-    }
-    
     img_mat = cv2.imread(image)
     model = DepthAnythingV2(**model_configs[encoder.value])
     model.load_state_dict(torch.load(f'external/Depth-Anything-V2/checkpoints/depth_anything_v2_{encoder.value}.pth', map_location='cpu'))
