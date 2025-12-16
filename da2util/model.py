@@ -6,6 +6,7 @@ class DepthModel(Enum):
     Small = "vits"
     Base = "vitb"
     Large = "vitl"
+    Giant = "vitg"
 
 class VideoModel(Enum):
     Small = "vits"
