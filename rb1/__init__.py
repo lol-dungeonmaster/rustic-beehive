@@ -1,4 +1,4 @@
-import cv2, numpy as np, torch
+import cv2, numpy as np, open3d as o3d, os, torch
 from cv2.typing import MatLike
 from da2util.model import DepthModel, VideoModel
 from google import genai
