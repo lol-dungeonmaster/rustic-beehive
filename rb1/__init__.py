@@ -1,10 +1,11 @@
-import cv2, numpy as np, open3d as o3d, os, torch
+import cv2, json, numpy as np, open3d as o3d, os, pathlib, torch
 from cv2.typing import MatLike
 from da2util.model import DepthModel, VideoModel
 from google import genai
 from IPython.display import HTML
 from matplotlib import pyplot as plt
 from numpy.typing import NDArray
+from PIL import Image, PngImagePlugin
 from screeninfo import get_monitors
 from typing import Any
 from . import agent
@@ -81,12 +82,48 @@ model_configs = {
     'vitg': {'encoder': 'vitg', 'features': 384, 'out_channels': [1536, 1536, 1536, 1536]}
 }
 
+def scale_to_uint8(depths: MatLike) -> tuple[MatLike, float, float]:
+    min_val = float(depths.min())
+    max_val = float(depths.max())
+    if max_val == min_val:
+        raise ValueError("This depth map has zero dynamic range.")
+    scaled = ((depths - min_val) / (max_val - min_val) * 255).astype(np.uint8)
+    return scaled, min_val, max_val
+
+def save_depth_png(depths: MatLike, src_name: str, out_path: str = 'docs/results'):
+    scaled, min_val, max_val = scale_to_uint8(depths)
+    png_out = Image.fromarray(scaled, mode="L") # "L" = 8‑bit grayscale
+    # Store the scaling parameters in PNG metadata.
+    meta = PngImagePlugin.PngInfo()
+    meta.add_text(
+        "depth_scale",
+        json.dumps({"min": min_val, "max": max_val}),
+        zip=False
+    )
+    png_out.save(os.path.join(out_path, os.path.splitext(os.path.basename(src_name))[0] + '_depths.png'), pnginfo=meta)
+
+def load_depth_png(depths_image: str) -> MatLike:
+    png_in = Image.open(depths_image) # reads metadata into .info
+    scaled = np.array(png_in, dtype=np.float32)
+    # Extract scaling parameters.
+    meta_json = png_in.info.get("depth_scale")
+    if meta_json is None:
+        raise KeyError("Missing 'depth_scale' metadata in PNG.")
+    params = json.loads(meta_json)
+    min_val = float(params["min"])
+    max_val = float(params["max"])
+    # Recover the original depths.
+    depths = scaled / 255.0 * (max_val - min_val) + min_val
+    return depths.astype(np.float32)
+
 def infer_image_depth(image: str, encoder: DepthModel = DepthModel.Large) -> MatLike:
     device = 'cuda' if torch.cuda.is_available() else 'mps' if torch.backends.mps.is_available() else 'cpu'
-    print(f"image_depth: using {device} backend")
-
-    img_mat = cv2.imread(image)
+    print(f'image_depth: using {device} backend')
+    # Generate depth prediction.
     model = DepthAnythingV2(**model_configs[encoder.value])
     model.load_state_dict(torch.load(f'external/Depth-Anything-V2/checkpoints/depth_anything_v2_{encoder.value}.pth', map_location='cpu'))
     model = model.to(device).eval()
-    return model.infer_image(img_mat) # HxW raw depth map in numpy
+    depths = model.infer_image(cv2.imread(image))
+    # Save the depth prediction.
+    save_depth_png(depths, src_name=image)
+    return depths # HxW raw depth map in numpy
