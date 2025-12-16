@@ -15,7 +15,7 @@ class VideoModel(Enum):
 
 from support.api import Api
 
-def init_model(encoder: Enum):
+def init_model(encoder: DepthModel | VideoModel):
     if isinstance(encoder, DepthModel):
         checkpoints = Path("external/Depth-Anything-V2/checkpoints")
         target_file = f"depth_anything_v2_{encoder.value}.pth"
