@@ -116,8 +116,30 @@ def load_depth_png(depths_image: str) -> MatLike:
     depths = scaled / 65535.0 * (max_val - min_val) + min_val
     return depths.astype(np.float32)
 
-def save_depth_lossless(depths: MatLike, src_name: str, out_path: str = 'docs/results'):
-    np.savez_compressed(os.path.join(out_path, os.path.splitext(src_name)[0]+'_depths.npz'), depths=depths)
+def save_depth_lossless(depths: MatLike | NDArray, src_name: str, out_path: str = 'docs/results'):
+    # Save the raw depth map.
+    np.savez_compressed(os.path.join(out_path, os.path.splitext(os.path.basename(src_name))[0]+'_depths.npz'), depths=depths)
+    # Check if depths is a video.
+    if isinstance(depths, tuple) and len(depths) == 2:
+        export_video_exr(depths, src_name, out_path)
+    else:
+        export_image_exr(depths, os.path.splitext(os.path.basename(src_name))[0]+'_depths.exr', out_path)
+
+def export_image_exr(depth: MatLike, out_name: str, out_path: str):
+    output_exr = f"{out_path}/{out_name}"
+    header = OpenEXR.Header(depth.shape[1], depth.shape[0])
+    header["channels"] = {
+        "Z": Imath.Channel(Imath.PixelType(Imath.PixelType.FLOAT))
+    }
+    exr_file = OpenEXR.OutputFile(output_exr, header)
+    exr_file.writePixels({"Z": depth.tobytes()})
+    exr_file.close()
+
+def export_video_exr(depths: NDArray, src_name: str, out_path: str):
+    exr_out = os.path.join(out_path, os.path.splitext(os.path.basename(src_name))[0]+'_depths_exr')
+    os.makedirs(exr_out, exist_ok=True)
+    for i, depth in enumerate(depths):
+        export_image_exr(depth, f"frame_{i:05d}.exr", exr_out)
 
 def infer_image_depth(image: str, encoder: DepthModel = DepthModel.Large) -> MatLike:
     device = 'cuda' if torch.cuda.is_available() else 'mps' if torch.backends.mps.is_available() else 'cpu'
@@ -129,4 +151,5 @@ def infer_image_depth(image: str, encoder: DepthModel = DepthModel.Large) -> Mat
     depths = model.infer_image(cv2.imread(image))
     # Save the depth prediction.
     save_depth_png(depths, src_name=image)
+    save_depth_lossless(depths, src_name=image)
     return depths # HxW raw depth map in numpy
